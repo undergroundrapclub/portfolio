@@ -5,7 +5,7 @@ hide: true
 show_reading_time: false
 ---
 
-Hi! My name is [Your Full Name]
+Hi! Our names are Salma, Isha, and Aashi is the best
 
 ### Development Environment
 
