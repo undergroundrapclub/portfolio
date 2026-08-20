@@ -169,3 +169,8 @@ export class CodeExecutor {
 }
 
 export default CodeExecutor;
+
+// The orginal code was taking from runner and calling the backend to run the code. The new code is taking from github instead of the backend. 
+// The new code is also using pyodide to run python code in the browser.
+// The new code is also using eval to run javascript code in the browser.
+// The new code will not help the javascript images to run 
