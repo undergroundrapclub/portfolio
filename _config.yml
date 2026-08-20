@@ -19,7 +19,7 @@ description: "Class of 2026"
 owner_name: Salma Zaghloul
 github_username: Salma-Zag
 github_repo: "portfolio" 
-baseurl: "" 
+baseurl: "/portfolio" 
 future: true
 
 # Build settings
