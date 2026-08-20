@@ -1,4 +1,26 @@
 export class CodeExecutor {
+  static pyodideInstance = null;
+  static pyodidePromise = null;
+
+  static async getPyodide() {
+    if (window?.pyodide) return window.pyodide;
+
+    if (!window.loadPyodide) {
+      throw new Error('Pyodide is not loaded.');
+    }
+
+    if (!CodeExecutor.pyodidePromise) {
+      CodeExecutor.pyodidePromise = window.loadPyodide({
+        indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/'
+      });
+    }
+
+    const pyodide = await CodeExecutor.pyodidePromise;
+    CodeExecutor.pyodideInstance = pyodide;
+    window.pyodide = pyodide;
+    return pyodide;
+  }
+
   constructor({ editor, outputElement, execTimeElement, languageSelect, pythonURI, javaURI, fetchOptions = {} } = {}) {
     this.editor = editor;
     this.outputElement = outputElement;
@@ -36,6 +58,19 @@ export class CodeExecutor {
 
     try {
       const res = await fetch(runURL, options);
+
+      if (!res.ok) {
+        const raw = await res.text();
+        let message = raw;
+        try {
+          const parsed = JSON.parse(raw);
+          message = parsed.output || parsed.error || raw;
+        } catch (e) {
+          // ignore parse error, keep raw text
+        }
+        throw new Error(message || `HTTP ${res.status}`);
+      }
+
       const result = await res.json();
       const output = result.output || '[no output]';
 
@@ -48,12 +83,47 @@ export class CodeExecutor {
         execTimeSpan.textContent = `⏱Execution time: ${Date.now() - startTime}ms`;
       }
     } catch (err) {
-      if (lang === 'javascript' && isLocalhost) {
+      console.warn('Backend execution failed, using browser fallback:', err);
+
+      if (lang === 'python') {
+        try {
+          await this.runPythonFallback(code, startTime);
+        } catch (fallbackErr) {
+          outputDiv.textContent = 'Error: ' + fallbackErr.message;
+          if (execTimeSpan) execTimeSpan.textContent = '';
+        }
+      } else if (lang === 'javascript') {
         this.runJavaScriptFallback(code, startTime);
+      } else if (lang === 'java') {
+        outputDiv.textContent = 'Java cannot run in the browser on GitHub Pages. Use the local backend or a different host.';
+        if (execTimeSpan) execTimeSpan.textContent = '';
       } else {
         outputDiv.textContent = 'Error: ' + err.message;
         if (execTimeSpan) execTimeSpan.textContent = '';
       }
+    }
+  }
+
+  async runPythonFallback(code, startTime) {
+    const outputDiv = this.outputElement;
+    const execTimeSpan = this.execTimeElement;
+
+    try {
+      const pyodide = await CodeExecutor.getPyodide();
+      const captured = [];
+      pyodide.setStdout({ batched: (value) => captured.push(String(value)) });
+      pyodide.setStderr({ batched: (value) => captured.push(String(value)) });
+
+      await pyodide.runPythonAsync(code);
+
+      const resultText = captured.join('') || '[no output]';
+      outputDiv.textContent = resultText;
+      if (execTimeSpan) {
+        execTimeSpan.textContent = `⏱Execution time: ${Date.now() - startTime}ms (browser fallback)`;
+      }
+    } catch (fallbackErr) {
+      outputDiv.textContent = 'Error: ' + fallbackErr.message;
+      if (execTimeSpan) execTimeSpan.textContent = '';
     }
   }
 
